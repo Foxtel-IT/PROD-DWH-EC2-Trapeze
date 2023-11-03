@@ -1,0 +1,14 @@
+{
+    "Parameters" : {
+      "EnvName"               : "prod",
+      "EC2ImageID"            : "ami-0acb8241105da84cd",
+      "EC2InstanceType"       : "t3a.xlarge",
+	  "AppName"           : "prod-trapeze",
+      "EC2SSHKey"             : "Trapeze-prd-key",
+      "TrustedSubnetIDBlocks"  : "subnet-07fa51517de9ff046",
+      "ProtectedSubnetIDBlocks"  : "subnet-0688359b4c8af6f15",
+      "VpcId"                 : "vpc-0f6443a0dd97d714a",
+      "DeployInstance"        : "yes",
+      "ServiceName"           : "trapeze"
+    }
+}

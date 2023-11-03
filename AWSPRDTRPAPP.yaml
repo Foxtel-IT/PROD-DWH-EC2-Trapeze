@@ -1,0 +1,181 @@
+Description:  This template deploys Foxtel Windows trapeze EC2 server.
+Parameters:
+  AppName:
+    Description: An application name that will be prefixed to resource names
+    Type: String
+    Default: prod-trapeze
+  ServiceName:
+    Description: An application name that will be prefixed to resource names
+    Type: String
+    Default: trapeze
+  EnvName:
+    Description: An environment name that will be prefixed to resource names
+    Type: String
+    AllowedValues:
+      - dev
+      - sit
+      - uat
+      - prod
+      - nonprod
+    Default: prod
+  VpcId:
+    Description: Please enter the VPC id
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-0f6443a0dd97d714a
+  TrustedSubnetIDBlocks:
+    Description: List of Subnet IDs blocks where servers will be deployed
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-07fa51517de9ff046
+  ProtectedSubnetIDBlocks:
+    Description: List of Subnet IDs blocks where servers will be deployed
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-0688359b4c8af6f15
+  EC2SSHKey:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Specify SSH Key Name to use for the EC2 Hosts 
+    Default: Trapeze-prd-key
+  EC2ImageID:
+    Description: Provide the imageid that will be used for the EC2 autoscale group
+    Type: String
+    Default: ami-0acb8241105da84cd
+  EC2InstanceType:
+    Type: String
+    Description: Specify the instance type that will run the EC2 compute
+    Default: t3a.xlarge
+  DeployInstance:
+    Type: String
+    Description: Specify if the stack is to be deployed now (yes/no)
+    AllowedValues: ["yes", "no"]
+    Default: "yes"    
+
+Conditions:
+  isDeployInstance: !Equals ["yes", !Ref DeployInstance]
+
+Resources:
+  TRPappSG:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: 'AWSPRDTRPAPP01-Security-Group'
+      GroupName : 'trusted-AWSPRDTRPAPP01-sgs'
+      SecurityGroupEgress:
+        - IpProtocol: '-1'
+          CidrIp: 10.0.0.0/8
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '139'
+          ToPort: '139'
+          CidrIp: 10.77.132.123/32
+        - IpProtocol: tcp
+          FromPort: '445'
+          ToPort: '445'
+          CidrIp: 10.77.132.123/32
+        - IpProtocol: tcp
+          FromPort: '139'
+          ToPort: '139'
+          CidrIp: 10.77.132.81/32
+        - IpProtocol: tcp
+          FromPort: '445'
+          ToPort: '445'
+          CidrIp: 10.77.132.81/32
+        - IpProtocol: tcp
+          FromPort: '8001'
+          ToPort: '8002'
+          CidrIp: 10.77.93.0/24
+        - IpProtocol: tcp
+          FromPort: '3389'
+          ToPort: '3389'
+          CidrIp: 10.0.0.0/8
+      VpcId: !Ref 'VpcId'          
+      Tags: 
+        - Key: 'foxtel:service-name'
+          Value: "TCS Trapeze"
+        - Key: Name
+          Value: !Sub 'AWSPRDTRPAPP01-sg'  
+  TRPsqlSG:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: !Sub 'AWSPRDTRPSQL01-Security-Group'
+      GroupName : !Sub 'trusted-AWSPRDTRPSQL01-sgs'
+      SecurityGroupEgress:
+        - IpProtocol: '-1'
+          CidrIp: 10.0.0.0/8
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '3389'
+          ToPort: '3389'
+          CidrIp: 10.0.0.0/8
+
+      VpcId: !Ref 'VpcId'          
+      Tags: 
+        - Key: 'foxtel:service-name'
+          Value: "TCS Trapeze"
+        - Key: Name
+          Value: !Sub 'AWSPRDTRPSQL01-sg'
+# Application Server starts below
+  AWSPRDTRPAPP01:
+    Type: AWS::EC2::Instance
+    Condition: isDeployInstance
+    Properties:
+      IamInstanceProfile: DWH-EC2-Role
+      ImageId: !Ref EC2ImageID
+      InstanceType: !Ref EC2InstanceType
+      KeyName: !Ref EC2SSHKey
+      SubnetId: !Ref TrustedSubnetIDBlocks
+      SecurityGroupIds:
+      - sg-06893d96ea4b39db5
+      - !Ref TRPappSG
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeSize: 100
+        - DeviceName: xvdf
+          Ebs:
+            VolumeSize: 25
+        - DeviceName: xvdz
+          Ebs:
+            VolumeSize: 225
+      Tags:
+      - Key: Name
+        Value: 'AWSPRDTRPAPP01'
+      - Key: foxtel:backup-plan
+        Value: 'true'
+      - Key: Environment
+        Value: "PROD"
+      - Key: foxtel:service-name
+        Value: 'TCS Trapeze'        
+      - Key: foxtel:project
+        Value: 'TCS Trapeze'
+  
+  AWSPRDTRPSQL01:
+    Type: AWS::EC2::Instance
+    Condition: isDeployInstance
+    Properties:
+      IamInstanceProfile: DWH-EC2-Role
+      ImageId: !Ref EC2ImageID
+      InstanceType: !Ref EC2InstanceType
+      KeyName: !Ref EC2SSHKey
+      SubnetId: !Ref ProtectedSubnetIDBlocks
+      SecurityGroupIds:
+      - sg-06893d96ea4b39db5
+      - !Ref TRPsqlSG
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeSize: 100
+        - DeviceName: xvdf
+          Ebs:
+            VolumeSize: 75
+        - DeviceName: xvdz
+          Ebs:
+            VolumeSize: 75
+      Tags:
+      - Key: Name
+        Value: 'AWSPRDTRPSQL01'
+      - Key: foxtel:backup-plan
+        Value: 'true'
+      - Key: Environment
+        Value: "PROD"
+      - Key: foxtel:service-name
+        Value: 'DWH-MSSQL'        
+      - Key: foxtel:project
+        Value: 'TCS Trapeze'
